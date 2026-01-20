@@ -31,10 +31,20 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface Exam {
+  id: string;
+  subject: string;
+  date: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+}
+
 export enum AppTab {
   DASHBOARD = 'dashboard',
   LEARNING = 'learning',
   SCHEDULE = 'schedule',
   HEALTH = 'health',
-  RESOURCES = 'resources'
+  RESOURCES = 'resources',
+  POINTS = 'points',
+  STUDY_ANALYSIS = 'study_analysis',
+  EXAM_PLAN = 'exam_plan'
 }

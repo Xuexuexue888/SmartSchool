@@ -5,6 +5,7 @@ import {
   XAxis, YAxis, AreaChart, Area
 } from 'recharts';
 import { Clock, BookOpen, Star, AlertCircle } from 'lucide-react';
+import { AppTab } from '../types';
 
 const data = [
   { name: '周一', hours: 4 },
@@ -16,7 +17,47 @@ const data = [
   { name: '周日', hours: 2 },
 ];
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  setActiveTab: (tab: AppTab) => void;
+  points: number;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ setActiveTab, points }) => {
+  const stats = [
+    { 
+      label: '今日学习', 
+      val: '5.5h', 
+      icon: Clock, 
+      color: 'text-blue-600', 
+      bg: 'bg-blue-50',
+      action: () => setActiveTab(AppTab.STUDY_ANALYSIS)
+    },
+    { 
+      label: '待办任务', 
+      val: '4', 
+      icon: BookOpen, 
+      color: 'text-orange-600', 
+      bg: 'bg-orange-50',
+      action: () => setActiveTab(AppTab.SCHEDULE)
+    },
+    { 
+      label: '知识积分', 
+      val: points.toLocaleString(), 
+      icon: Star, 
+      color: 'text-yellow-600', 
+      bg: 'bg-yellow-50',
+      action: () => setActiveTab(AppTab.POINTS)
+    },
+    { 
+      label: '临近考试', 
+      val: '1', 
+      icon: AlertCircle, 
+      color: 'text-red-600', 
+      bg: 'bg-red-50',
+      action: () => setActiveTab(AppTab.EXAM_PLAN)
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <header>
@@ -26,13 +67,12 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {[
-          { label: '今日学习', val: '5.5h', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: '待办任务', val: '4', icon: BookOpen, color: 'text-orange-600', bg: 'bg-orange-50' },
-          { label: '知识积分', val: '1,250', icon: Star, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { label: '临近考试', val: '1', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center sm:space-x-4 text-center sm:text-left">
+        {stats.map((stat, i) => (
+          <div 
+            key={i} 
+            onClick={stat.action}
+            className={`bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center sm:space-x-4 text-center sm:text-left transition-all ${stat.action ? 'cursor-pointer hover:border-indigo-200 hover:shadow-md active:scale-95' : ''}`}
+          >
             <div className={`${stat.bg} ${stat.color} p-2.5 md:p-3 rounded-xl mb-2 sm:mb-0`}>
               <stat.icon size={20} />
             </div>
@@ -80,7 +120,7 @@ const Dashboard: React.FC = () => {
               { time: '14:30', title: '项目小组讨论', tag: '活动', color: 'bg-green-100 text-green-700' },
               { time: '19:00', title: 'Gemini API 研究', tag: '自习', color: 'bg-purple-100 text-purple-700' },
             ].map((item, i) => (
-              <div key={i} className="flex items-start space-x-3 p-3 rounded-xl hover:bg-slate-50 transition-colors">
+              <div key={i} className="flex items-start space-x-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setActiveTab(AppTab.SCHEDULE)}>
                 <span className="text-[10px] font-semibold text-slate-400 mt-1 whitespace-nowrap">{item.time}</span>
                 <div>
                   <h4 className="text-xs md:text-sm font-semibold text-slate-700">{item.title}</h4>
@@ -91,6 +131,12 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
+          <button 
+            onClick={() => setActiveTab(AppTab.SCHEDULE)}
+            className="w-full mt-6 py-2 text-xs md:text-sm text-indigo-600 font-medium hover:bg-indigo-50 rounded-xl transition-colors"
+          >
+            查看完整计划表
+          </button>
         </div>
       </div>
     </div>

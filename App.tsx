@@ -6,20 +6,35 @@ import LearningAssistant from './views/LearningAssistant';
 import TimeManagement from './views/TimeManagement';
 import MentalHealth from './views/MentalHealth';
 import ResourceSharing from './views/ResourceSharing';
+import PointsCenter from './views/PointsCenter';
+import StudyAnalysis from './views/StudyAnalysis';
+import ExamPlanning from './views/ExamPlanning';
 import { AppTab } from './types';
 import { Bell, Search, Settings, User } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.DASHBOARD);
+  const [userPoints, setUserPoints] = useState(1250);
+  const [membershipDays, setMembershipDays] = useState(0);
 
   const renderContent = () => {
     switch (activeTab) {
-      case AppTab.DASHBOARD: return <Dashboard />;
+      case AppTab.DASHBOARD: return <Dashboard setActiveTab={setActiveTab} points={userPoints} />;
       case AppTab.LEARNING: return <LearningAssistant />;
       case AppTab.SCHEDULE: return <TimeManagement />;
       case AppTab.HEALTH: return <MentalHealth />;
       case AppTab.RESOURCES: return <ResourceSharing />;
-      default: return <Dashboard />;
+      case AppTab.POINTS: return (
+        <PointsCenter 
+          points={userPoints} 
+          setPoints={setUserPoints} 
+          membershipDays={membershipDays} 
+          setMembershipDays={setMembershipDays} 
+        />
+      );
+      case AppTab.STUDY_ANALYSIS: return <StudyAnalysis />;
+      case AppTab.EXAM_PLAN: return <ExamPlanning />;
+      default: return <Dashboard setActiveTab={setActiveTab} points={userPoints} />;
     }
   };
 
@@ -53,11 +68,12 @@ const App: React.FC = () => {
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-50"></span>
             </button>
             <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
-            <div className="flex items-center space-x-2 cursor-pointer">
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setActiveTab(AppTab.POINTS)}>
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-800 leading-none">张同学</p>
+                <p className="text-[10px] text-indigo-600 font-bold mt-1">积分: {userPoints}</p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white border-2 border-white shadow-sm ring-1 ring-slate-100">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white border-2 border-white shadow-sm ring-1 ring-slate-100 ml-2">
                 <User size={18} />
               </div>
             </div>

@@ -58,13 +58,68 @@ export async function analyzeMood(text: string) {
   }
 }
 
-export async function generateStudyPlan(goals: string, currentStatus: string) {
+export async function analyzeStudySession(subject: string, duration: string, details: string, confidence: string) {
+  const prompt = `Student studied ${subject} for ${duration} minutes. Details: ${details}. Confidence level: ${confidence}/5.`;
   const response = await ai.models.generateContent({
     model: MODELS.PRO,
-    contents: `Generate a study plan for: ${goals}. Current status: ${currentStatus}`,
+    contents: prompt,
     config: {
-      systemInstruction: "Create a personalized 7-day study plan. Balance intensity with rest periods.",
+      systemInstruction: "You are an expert academic coach. Analyze the study session log. Provide a summary, identify gaps, give a specific recommendation for next time, and an efficiency score (0-100).",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          summary: { type: Type.STRING },
+          gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recommendation: { type: Type.STRING },
+          efficiencyScore: { type: Type.NUMBER }
+        },
+        required: ["summary", "gaps", "recommendation", "efficiencyScore"]
+      }
     }
   });
-  return response.text;
+  try {
+    return JSON.parse(response.text || '{}');
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function generateExamRevisionPlan(exams: any[]) {
+  const examsStr = exams.map(e => `${e.subject} on ${e.date} (Difficulty: ${e.difficulty})`).join(', ');
+  const prompt = `Create a prioritized revision schedule for the following exams: ${examsStr}. The plan should focus more time on harder exams and those that are sooner.`;
+  
+  const response = await ai.models.generateContent({
+    model: MODELS.PRO,
+    contents: prompt,
+    config: {
+      systemInstruction: "You are an expert educational consultant. Create a detailed, day-by-day revision schedule in JSON format. Include specific study focus areas for each session.",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          overview: { type: Type.STRING },
+          schedule: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                day: { type: Type.STRING },
+                subject: { type: Type.STRING },
+                focus: { type: Type.STRING },
+                duration: { type: Type.STRING }
+              },
+              required: ["day", "subject", "focus", "duration"]
+            }
+          }
+        },
+        required: ["overview", "schedule"]
+      }
+    }
+  });
+  try {
+    return JSON.parse(response.text || '{}');
+  } catch (e) {
+    return null;
+  }
 }

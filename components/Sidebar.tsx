@@ -5,7 +5,8 @@ import {
   GraduationCap, 
   Calendar, 
   HeartPulse, 
-  Share2
+  Share2,
+  Coins
 } from 'lucide-react';
 import { AppTab } from '../types';
 
@@ -21,6 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: AppTab.SCHEDULE, label: '计划', icon: Calendar },
     { id: AppTab.HEALTH, label: '心态', icon: HeartPulse },
     { id: AppTab.RESOURCES, label: '资源', icon: Share2 },
+    { id: AppTab.POINTS, label: '积分', icon: Coins },
   ];
 
   return (
@@ -61,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-2 z-50 pb-safe">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-2 z-50 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -70,11 +72,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`flex flex-col items-center justify-center flex-1 py-1 rounded-lg transition-colors ${
-                isActive ? 'text-indigo-600' : 'text-slate-400'
+                isActive ? 'text-indigo-600 font-bold' : 'text-slate-400'
               }`}
             >
-              <Icon size={22} />
-              <span className="text-[10px] mt-1 font-medium">{item.label}</span>
+              <Icon size={20} />
+              <span className="text-[9px] mt-1 font-medium">{item.label}</span>
             </button>
           );
         })}
