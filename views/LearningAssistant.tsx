@@ -5,7 +5,7 @@ import { askTutorStream, summarizeNotesStream, generateStudyPlanStream } from '.
 import { ChatMessage } from '../types';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 
-// --- Audio Utilities ---
+// --- Audio Utilities for Live API ---
 function encode(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -46,7 +46,7 @@ async function decodeAudioData(
 
 const LearningAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: '你好！我是你的 AI 学习助手。你可以问我学术问题，或者点击麦克风开启实时语音交流。', timestamp: new Date() }
+    { role: 'model', text: '你好！我是你的 AI 学习助手。你可以问我学术问题，或者开启实时语音交流。', timestamp: new Date() }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,7 +76,7 @@ const LearningAssistant: React.FC = () => {
       audioContextsRef.current = null;
     }
     for (const source of sourcesRef.current) {
-      source.stop();
+      try { source.stop(); } catch(e) {}
     }
     sourcesRef.current.clear();
     setIsLive(false);
@@ -154,7 +154,9 @@ const LearningAssistant: React.FC = () => {
             }
 
             if (message.serverContent?.interrupted) {
-              for (const s of sourcesRef.current) s.stop();
+              for (const s of sourcesRef.current) {
+                 try { s.stop(); } catch(e) {}
+              }
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
             }
@@ -181,30 +183,40 @@ const LearningAssistant: React.FC = () => {
     } catch (err) {
       console.error('Failed to start live session:', err);
       setIsLive(false);
-      alert('无法开启实时语音，请确保麦克风权限已开启。');
+      alert('无法开启实时语音，请确保麦克风权限已开启且 API 密钥有效。');
     }
   };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+
+    if (!process.env.API_KEY) {
+      setMessages(prev => [
+        ...prev, 
+        { role: 'user', text: input, timestamp: new Date() }, 
+        { role: 'model', text: '⚠️ 错误：未检测到 API 密钥。请确保在环境变量中配置了 API_KEY。', timestamp: new Date() }
+      ]);
+      setInput('');
+      return;
+    }
     
     const userMsg: ChatMessage = { role: 'user', text: input, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
+    const currentInput = input;
     setInput('');
     setLoading(true);
 
     try {
-      // Initialize an empty message from the model
-      const modelMsg: ChatMessage = { role: 'model', text: '', timestamp: new Date() };
-      setMessages(prev => [...prev, modelMsg]);
+      // Add initial empty model response for streaming
+      setMessages(prev => [...prev, { role: 'model', text: '', timestamp: new Date() }]);
 
       let stream;
       if (activeMode === 'qa') {
-        stream = askTutorStream(input);
+        stream = askTutorStream(currentInput);
       } else if (activeMode === 'notes') {
-        stream = summarizeNotesStream(input);
+        stream = summarizeNotesStream(currentInput);
       } else {
-        stream = generateStudyPlanStream(input, "Student seeking a 7-day plan.");
+        stream = generateStudyPlanStream(currentInput, "学生寻求计划建议。");
       }
       
       let fullText = '';
@@ -212,17 +224,18 @@ const LearningAssistant: React.FC = () => {
         if (chunk) {
           fullText += chunk;
           setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'model') {
-              return [...prev.slice(0, -1), { ...last, text: fullText }];
+            const newMsgs = [...prev];
+            const lastMsg = newMsgs[newMsgs.length - 1];
+            if (lastMsg && lastMsg.role === 'model') {
+              lastMsg.text = fullText;
             }
-            return prev;
+            return newMsgs;
           });
         }
       }
     } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, { role: 'model', text: '请求发生错误，请稍后再试。', timestamp: new Date() }]);
+      console.error("Chat Error:", error);
+      setMessages(prev => [...prev, { role: 'model', text: '抱歉，服务目前不可用，请稍后再试。', timestamp: new Date() }]);
     } finally {
       setLoading(false);
     }
@@ -230,6 +243,7 @@ const LearningAssistant: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col space-y-4">
+      {/* Mode Selectors */}
       <div className="flex items-center justify-between space-x-2 md:space-x-4 overflow-x-auto pb-1">
         <div className="flex space-x-2 shrink-0">
           <button 
@@ -264,6 +278,7 @@ const LearningAssistant: React.FC = () => {
         </button>
       </div>
 
+      {/* Chat Area */}
       <div className="flex-1 bg-white rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm flex flex-col overflow-hidden relative">
         {isLive && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/80 backdrop-blur-md px-4 py-2 rounded-full flex items-center space-x-3 text-white">
@@ -306,11 +321,13 @@ const LearningAssistant: React.FC = () => {
           )}
         </div>
 
+        {/* Input Controls */}
         <div className="p-3 md:p-4 bg-white border-t border-slate-100">
           <div className="flex items-center space-x-2 bg-slate-50 rounded-2xl px-3 py-1 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-500 transition-all shadow-inner">
             <button 
               onClick={startLiveSession}
               className={`p-2 transition-colors ${isLive ? 'text-red-500' : 'text-slate-400 hover:text-indigo-600'}`}
+              title="实时语音对话"
             >
               <Mic size={18} />
             </button>
@@ -325,7 +342,7 @@ const LearningAssistant: React.FC = () => {
                   handleSend();
                 }
               }}
-              placeholder={isLive ? "实时语音模式已开启..." : (activeMode === 'qa' ? "问个问题..." : activeMode === 'notes' ? "粘贴文本整理..." : "输入你的学习目标...")}
+              placeholder={isLive ? "实时语音模式已开启..." : "输入消息..."}
               className="flex-1 bg-transparent border-none focus:ring-0 text-xs md:text-sm py-2 max-h-24 resize-none"
             />
             <button 
