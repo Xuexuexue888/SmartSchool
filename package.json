@@ -1,4 +1,3 @@
-
 {
   "name": "smart-campus",
   "private": true,
@@ -13,7 +12,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "lucide-react": "^0.562.0",
-    "@google/genai": "^1.36.0",
+    "@google/genai": "^1.38.0",
     "recharts": "^3.6.0"
   },
   "devDependencies": {
