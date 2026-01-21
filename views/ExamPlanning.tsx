@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Calendar, Book, Brain, AlertTriangle, Plus, Trash2, Sparkles, Loader2, ListChecks, CalendarRange } from 'lucide-react';
-import { generateExamRevisionPlan } from '../services/geminiService';
+// Fix: Use generateExamRevisionPlanStream as generateExamRevisionPlan is not exported
+import { generateExamRevisionPlanStream } from '../services/geminiService';
 import { Exam } from '../types';
 
 const ExamPlanning: React.FC = () => {
@@ -31,11 +31,17 @@ const ExamPlanning: React.FC = () => {
     setExams(exams.filter(e => e.id !== id));
   };
 
+  // Fix: Consume the async generator stream and aggregate chunks to parse final JSON
   const generatePlan = async () => {
     if (exams.length === 0) return;
     setIsGenerating(true);
+    let fullJsonStr = '';
     try {
-      const generatedPlan = await generateExamRevisionPlan(exams);
+      const stream = generateExamRevisionPlanStream(exams);
+      for await (const chunk of stream) {
+        fullJsonStr += chunk;
+      }
+      const generatedPlan = JSON.parse(fullJsonStr);
       setPlan(generatedPlan);
     } catch (error) {
       console.error(error);

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, FileText, Sparkles, Loader2, BrainCircuit, MicOff, Volume2, CalendarDays } from 'lucide-react';
 import { askTutorStream, summarizeNotesStream, generateStudyPlanStream } from '../services/geminiService';
@@ -90,7 +89,8 @@ const LearningAssistant: React.FC = () => {
 
     try {
       setIsLive(true);
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      // Fix: Use process.env.API_KEY directly as per guidelines
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -180,7 +180,7 @@ const LearningAssistant: React.FC = () => {
       });
 
       sessionRef.current = await sessionPromise;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start live session:', err);
       setIsLive(false);
       alert('无法开启实时语音，请确保麦克风权限已开启且 API 密钥有效。');
@@ -207,7 +207,6 @@ const LearningAssistant: React.FC = () => {
     setLoading(true);
 
     try {
-      // Add initial empty model response for streaming
       setMessages(prev => [...prev, { role: 'model', text: '', timestamp: new Date() }]);
 
       let stream;

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   BarChart3, 
@@ -15,7 +14,8 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, 
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid 
 } from 'recharts';
-import { generateComprehensiveReport } from '../services/geminiService';
+// Fix: Use generateComprehensiveReportStream as generateComprehensiveReport is not exported
+import { generateComprehensiveReportStream } from '../services/geminiService';
 
 const WeeklyReport: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -39,13 +39,20 @@ const WeeklyReport: React.FC = () => {
     { name: 'Sun', study: 2, mood: 4 },
   ];
 
+  // Fix: Consume the async generator stream and aggregate chunks to parse final JSON
   const fetchReport = async () => {
     setIsGenerating(true);
     const mockData = { study: trendData, mood: trendData, points: 1250 };
+    let fullJsonStr = '';
     try {
-      const res = await generateComprehensiveReport(mockData);
+      const stream = generateComprehensiveReportStream(mockData);
+      for await (const chunk of stream) {
+        fullJsonStr += chunk;
+      }
+      const res = JSON.parse(fullJsonStr);
       setReport(res);
     } catch (e) {
+      console.error(e);
       alert('报告生成失败');
     } finally {
       setIsGenerating(false);
