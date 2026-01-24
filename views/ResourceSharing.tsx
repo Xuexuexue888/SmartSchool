@@ -1,5 +1,5 @@
 // views/ResourceSharing.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -10,14 +10,15 @@ import {
   UploadCloud,
   ArrowUpRight,
 } from "lucide-react";
-import { Resource } from "../types";
-import { useResourceStore, toggleBookmark, addRecent } from "../services/resourceStore";
 
-// 你原本的 Resource 没有 category/updatedAt，我们用交叉类型扩展一下（不改全局 types）
+import { Resource } from "../types";
+import { addRecent, getBookmarks, getRecents, toggleBookmark, RecentItem } from "../services/resourceStore";
+
+// 扩展：不改全局 types.ts，ResourceSharing 内部自己加字段
 type ResourceItem = Resource & {
   category: "课堂笔记" | "历年考卷" | "学术书籍";
-  updatedAt: string; // 用于“最新”排序
-  tags?: string[]; // 用于搜索命中更多内容（可选）
+  updatedAt: string; // “最新”排序用
+  tags?: string[];
 };
 
 const resources: ResourceItem[] = [
@@ -67,7 +68,6 @@ const resources: ResourceItem[] = [
   },
 ];
 
-// AI 推荐资源（加入可收藏/可加入最近）
 const aiPick: ResourceItem = {
   id: "ai-pick-ds-2024",
   title: "2024春季数据结构必考点全覆盖",
@@ -82,28 +82,32 @@ const aiPick: ResourceItem = {
 
 type ViewMode = "all" | "bookmarks" | "recents";
 type SortMode = "downloads" | "rating" | "newest";
+type CategoryMode = "全部资料" | "课堂笔记" | "历年考卷" | "学术书籍";
 
 const ResourceSharing: React.FC = () => {
-  // ✅ 从 store 里拿：收藏 + 最近（自动订阅刷新）
-  const { bookmarks: bookmarkIds, recents } = useResourceStore();
-
-  // ====== 视图：全部 / 收藏 / 最近 ======
+  // 视图：全部/收藏/最近
   const [viewMode, setViewMode] = useState<ViewMode>("all");
 
-  // ====== 筛选与排序 ======
+  // 搜索/分类/排序
   const [keyword, setKeyword] = useState("");
-  const [category, setCategory] = useState<"全部资料" | "课堂笔记" | "历年考卷" | "学术书籍">("全部资料");
+  const [category, setCategory] = useState<CategoryMode>("全部资料");
   const [sortMode, setSortMode] = useState<SortMode>("downloads");
 
-  // 最近浏览排序映射：越靠前越新
+  // 本地持久化状态
+  const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
+  const [recents, setRecents] = useState<RecentItem[]>([]);
+
+  useEffect(() => {
+    setBookmarkIds(getBookmarks());
+    setRecents(getRecents());
+  }, []);
+
   const recentOrder = useMemo(() => {
     return new Map(recents.map((x, idx) => [x.id, idx]));
   }, [recents]);
 
-  // 资源全集（包含 AI 推荐）
   const allResources = useMemo(() => [aiPick, ...resources], []);
 
-  // ====== 根据 视图/筛选/搜索/排序 生成最终列表 ======
   const visibleResources = useMemo(() => {
     const bookmarkSet = new Set(bookmarkIds);
     let list = allResources;
@@ -129,7 +133,7 @@ const ResourceSharing: React.FC = () => {
       });
     }
 
-    // 排序：最近浏览固定按最近顺序；其他按 sortMode
+    // 排序
     if (viewMode === "recents") {
       list = [...list].sort(
         (a, b) => (recentOrder.get(a.id) ?? 9999) - (recentOrder.get(b.id) ?? 9999)
@@ -157,14 +161,16 @@ const ResourceSharing: React.FC = () => {
       : "最新上传";
 
   function onToggleBookmark(id: string) {
-    toggleBookmark(id); // ✅ store 内会 notify，页面自动刷新
+    const updated = toggleBookmark(id);
+    setBookmarkIds(updated);
   }
 
   function markRecent(id: string) {
-    addRecent(id); // ✅ store 内会 notify，页面自动刷新
+    const updated = addRecent(id);
+    setRecents(updated);
   }
 
-  function iconByType(type: ResourceItem["type"]) {
+  function iconByType(type: any) {
     if (type === "Note") return <FileText size={20} />;
     if (type === "Exam") return <GraduationCap size={20} />;
     return <Book size={20} />;
@@ -204,9 +210,7 @@ const ResourceSharing: React.FC = () => {
           <button
             onClick={() => setViewMode("all")}
             className={`px-4 py-2 rounded-2xl text-sm font-semibold border transition-all ${
-              viewMode === "all"
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-600 border-slate-100"
+              viewMode === "all" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-100"
             }`}
           >
             全部
@@ -238,7 +242,8 @@ const ResourceSharing: React.FC = () => {
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500"
+            disabled={viewMode === "recents"}
+            className="bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           >
             <option value="downloads">按热度（下载量）</option>
             <option value="rating">按评分</option>
@@ -254,9 +259,7 @@ const ResourceSharing: React.FC = () => {
             key={tag}
             onClick={() => setCategory(tag)}
             className={`py-3 rounded-2xl font-semibold text-sm transition-all ${
-              category === tag
-                ? "bg-indigo-600 text-white shadow-lg"
-                : "bg-white text-slate-600 border border-slate-100"
+              category === tag ? "bg-indigo-600 text-white shadow-lg" : "bg-white text-slate-600 border border-slate-100"
             }`}
           >
             {tag}
@@ -266,7 +269,7 @@ const ResourceSharing: React.FC = () => {
 
       {/* 主卡片容器 */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        {/* AI 推荐块 */}
+        {/* AI 推荐 */}
         <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-50">
           <div className="p-8 border-r border-slate-50">
             <div className="flex items-center justify-between mb-4">
@@ -282,11 +285,7 @@ const ResourceSharing: React.FC = () => {
               >
                 <Star
                   size={18}
-                  className={
-                    bookmarkIds.includes(aiPick.id)
-                      ? "text-yellow-500 fill-yellow-500"
-                      : "text-slate-400"
-                  }
+                  className={bookmarkIds.includes(aiPick.id) ? "text-yellow-500 fill-yellow-500" : "text-slate-400"}
                 />
               </button>
             </div>
@@ -304,15 +303,13 @@ const ResourceSharing: React.FC = () => {
                 <Download size={16} />
                 <span>立即下载</span>
               </button>
-              <button
-                onClick={() => markRecent(aiPick.id)}
-                className="text-indigo-600 text-sm font-bold hover:underline"
-              >
+              <button onClick={() => markRecent(aiPick.id)} className="text-indigo-600 text-sm font-bold hover:underline">
                 预览全文
               </button>
             </div>
           </div>
 
+          {/* 右侧统计（保留你原来的） */}
           <div className="p-8 bg-slate-50/30 flex items-center justify-center">
             <div className="grid grid-cols-2 gap-4 w-full">
               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
@@ -379,23 +376,18 @@ const ResourceSharing: React.FC = () => {
                       className="absolute top-3 right-3 w-9 h-9 rounded-xl border border-slate-100 hover:bg-slate-50 flex items-center justify-center"
                       title={marked ? "取消收藏" : "收藏"}
                     >
-                      <Star
-                        size={16}
-                        className={marked ? "text-yellow-500 fill-yellow-500" : "text-slate-400"}
-                      />
+                      <Star size={16} className={marked ? "text-yellow-500 fill-yellow-500" : "text-slate-400"} />
                     </button>
 
                     <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      {iconByType(res.type as any)}
+                      {iconByType(res.type)}
                     </div>
 
                     <div className="text-[10px] inline-flex px-2 py-1 rounded-full bg-slate-50 text-slate-500 font-bold mb-2">
                       {res.category}
                     </div>
 
-                    <h4 className="font-bold text-sm text-slate-800 line-clamp-2 min-h-[2.5rem] mb-2">
-                      {res.title}
-                    </h4>
+                    <h4 className="font-bold text-sm text-slate-800 line-clamp-2 min-h-[2.5rem] mb-2">{res.title}</h4>
                     <p className="text-xs text-slate-400 mb-4">By {res.author}</p>
 
                     <div className="flex items-center justify-between">
@@ -403,9 +395,7 @@ const ResourceSharing: React.FC = () => {
                         <Star size={12} className="text-yellow-400 fill-yellow-400" />
                         <span className="text-[10px] font-bold text-slate-600">{res.rating}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {res.downloads} 下载
-                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">{res.downloads} 下载</span>
                     </div>
 
                     <div className="mt-4 flex items-center justify-between">
@@ -430,9 +420,7 @@ const ResourceSharing: React.FC = () => {
                     </div>
 
                     {recentOrder.has(res.id) && (
-                      <div className="mt-2 text-[10px] text-slate-400">
-                        最近浏览：第 {(recentOrder.get(res.id) ?? 0) + 1} 条
-                      </div>
+                      <div className="mt-2 text-[10px] text-slate-400">最近浏览：第 {recentOrder.get(res.id)! + 1} 条</div>
                     )}
                   </div>
                 );
