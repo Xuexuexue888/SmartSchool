@@ -36,7 +36,7 @@ function notify() {
 export function subscribe(listener: Listener) {
   listeners.add(listener);
 
-  // 跨标签页同步：别的tab改了本tab也更新
+  // 跨标签页同步：别的 tab 改了，本 tab 也更新
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY_BOOKMARKS || e.key === KEY_RECENTS) notify();
   };
