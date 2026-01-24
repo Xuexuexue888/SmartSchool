@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -10,18 +10,13 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Resource } from "../types";
-import {
-  addRecent,
-  getBookmarks,
-  getRecents,
-  toggleBookmark,
-} from "../services/resourceStore";
+import { useResourceStore, toggleBookmark, addRecent } from "../services/resourceStore";
 
-// 你原本的 Resource 没有 category/updatedAt，我们用交叉类型扩展一下（不改全局 types）
+// 扩展类型（不改全局 types）
 type ResourceItem = Resource & {
   category: "课堂笔记" | "历年考卷" | "学术书籍";
-  updatedAt: string; // 用于“最新”排序
-  tags?: string[];   // 用于搜索命中更多内容（可选）
+  updatedAt: string;
+  tags?: string[];
 };
 
 const resources: ResourceItem[] = [
@@ -71,7 +66,6 @@ const resources: ResourceItem[] = [
   },
 ];
 
-// AI 推荐资源（加入可收藏/可加入最近）
 const aiPick: ResourceItem = {
   id: "ai-pick-ds-2024",
   title: "2024春季数据结构必考点全覆盖",
@@ -88,53 +82,36 @@ type ViewMode = "all" | "bookmarks" | "recents";
 type SortMode = "downloads" | "rating" | "newest";
 
 const ResourceSharing: React.FC = () => {
-  // ====== 视图：全部 / 收藏 / 最近 ======
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  // ✅ 方案B：直接从 store 读（自动刷新）
+  const { bookmarks, recents } = useResourceStore();
 
-  // ====== 筛选与排序 ======
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [keyword, setKeyword] = useState("");
-  const [category, setCategory] = useState<"全部资料" | "课堂笔记" | "历年考卷" | "学术书籍">("全部资料");
+  const [category, setCategory] = useState<
+    "全部资料" | "课堂笔记" | "历年考卷" | "学术书籍"
+  >("全部资料");
   const [sortMode, setSortMode] = useState<SortMode>("downloads");
 
-  // ====== 本地持久化状态（刷新不丢） ======
-  const [bookmarkIds, setBookmarkIds] = useState<string[]>([]);
-  const [recents, setRecents] = useState<{ id: string; ts: number }[]>([]);
-
-  useEffect(() => {
-    setBookmarkIds(getBookmarks());
-    setRecents(getRecents());
-  }, []);
-
-  // 最近浏览排序映射：越靠前越新
   const recentOrder = useMemo(() => {
     return new Map(recents.map((x, idx) => [x.id, idx]));
   }, [recents]);
 
-  // 资源全集（包含 AI 推荐也纳入列表逻辑，方便收藏/最近）
-  const allResources = useMemo(() => {
-    // 你也可以不把 aiPick 放进 allResources，这里放进来是为了“最近浏览/收藏”一致
-    return [aiPick, ...resources];
-  }, []);
+  const allResources = useMemo(() => [aiPick, ...resources], []);
 
-  // ====== 核心：根据 视图/筛选/搜索/排序 生成最终列表 ======
   const visibleResources = useMemo(() => {
-    const bookmarkSet = new Set(bookmarkIds);
-
+    const bookmarkSet = new Set(bookmarks);
     let list = allResources;
 
-    // 视图过滤
     if (viewMode === "bookmarks") {
       list = list.filter((r) => bookmarkSet.has(r.id));
     } else if (viewMode === "recents") {
       list = list.filter((r) => recentOrder.has(r.id));
     }
 
-    // 分类过滤
     if (category !== "全部资料") {
       list = list.filter((r) => r.category === category);
     }
 
-    // 搜索过滤
     const kw = keyword.trim().toLowerCase();
     if (kw) {
       list = list.filter((r) => {
@@ -143,7 +120,6 @@ const ResourceSharing: React.FC = () => {
       });
     }
 
-    // 排序：最近浏览固定按最近顺序；其他按 sortMode
     if (viewMode === "recents") {
       list = [...list].sort(
         (a, b) => (recentOrder.get(a.id) ?? 9999) - (recentOrder.get(b.id) ?? 9999)
@@ -151,17 +127,15 @@ const ResourceSharing: React.FC = () => {
     } else {
       list = [...list].sort((a, b) => {
         if (sortMode === "rating") return (b.rating ?? 0) - (a.rating ?? 0);
-        if (sortMode === "newest")
+        if (sortMode === "newest") {
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        }
         return (b.downloads ?? 0) - (a.downloads ?? 0);
       });
     }
 
-    // AI 推荐放在第一条已经保证了（它在 allResources 第一位），但如果你不想它总出现：
-    // 可以在 viewMode==="all" 且 category==="全部资料" 才保留 aiPick
-
     return list;
-  }, [allResources, bookmarkIds, recentOrder, viewMode, category, keyword, sortMode]);
+  }, [allResources, bookmarks, recents, recentOrder, viewMode, category, keyword, sortMode]);
 
   const listTitle =
     viewMode === "bookmarks"
@@ -175,13 +149,11 @@ const ResourceSharing: React.FC = () => {
       : "最新上传";
 
   function onToggleBookmark(id: string) {
-    const updated = toggleBookmark(id);
-    setBookmarkIds(updated);
+    toggleBookmark(id);
   }
 
   function markRecent(id: string) {
-    const updated = addRecent(id);
-    setRecents(updated);
+    addRecent(id);
   }
 
   function iconByType(type: ResourceItem["type"]) {
@@ -206,7 +178,6 @@ const ResourceSharing: React.FC = () => {
         </button>
       </div>
 
-      {/* 搜索 */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input
@@ -218,7 +189,6 @@ const ResourceSharing: React.FC = () => {
         />
       </div>
 
-      {/* 视图 + 排序 */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
         <div className="flex gap-2">
           <button
@@ -239,7 +209,7 @@ const ResourceSharing: React.FC = () => {
                 : "bg-white text-slate-600 border-slate-100"
             }`}
           >
-            ⭐ 收藏（{bookmarkIds.length}）
+            ⭐ 收藏（{bookmarks.length}）
           </button>
           <button
             onClick={() => setViewMode("recents")}
@@ -267,7 +237,6 @@ const ResourceSharing: React.FC = () => {
         </div>
       </div>
 
-      {/* 分类 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {tags.map((tag) => (
           <button
@@ -284,9 +253,7 @@ const ResourceSharing: React.FC = () => {
         ))}
       </div>
 
-      {/* 主卡片容器 */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        {/* AI 推荐块（保持你原来的 UI，但让按钮会写入“最近”并可收藏） */}
         <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-50">
           <div className="p-8 border-r border-slate-50">
             <div className="flex items-center justify-between mb-4">
@@ -298,12 +265,12 @@ const ResourceSharing: React.FC = () => {
               <button
                 onClick={() => onToggleBookmark(aiPick.id)}
                 className="w-10 h-10 rounded-xl border border-slate-100 hover:bg-slate-50 flex items-center justify-center"
-                title={bookmarkIds.includes(aiPick.id) ? "取消收藏" : "收藏"}
+                title={bookmarks.includes(aiPick.id) ? "取消收藏" : "收藏"}
               >
                 <Star
                   size={18}
                   className={
-                    bookmarkIds.includes(aiPick.id)
+                    bookmarks.includes(aiPick.id)
                       ? "text-yellow-500 fill-yellow-500"
                       : "text-slate-400"
                   }
@@ -355,7 +322,6 @@ const ResourceSharing: React.FC = () => {
           </div>
         </div>
 
-        {/* 列表 */}
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-slate-800">{listTitle}</h3>
@@ -381,7 +347,7 @@ const ResourceSharing: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {visibleResources.map((res) => {
-                const marked = bookmarkIds.includes(res.id);
+                const marked = bookmarks.includes(res.id);
                 return (
                   <div
                     key={res.id}
@@ -390,7 +356,6 @@ const ResourceSharing: React.FC = () => {
                     role="button"
                     tabIndex={0}
                   >
-                    {/* 右上收藏 */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -428,7 +393,6 @@ const ResourceSharing: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* 卡片底部操作（可选，但很实用） */}
                     <div className="mt-4 flex items-center justify-between">
                       <button
                         onClick={(e) => {
@@ -450,7 +414,6 @@ const ResourceSharing: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* 最近浏览标记（可选增强） */}
                     {recentOrder.has(res.id) && (
                       <div className="mt-2 text-[10px] text-slate-400">
                         最近浏览：第 {recentOrder.get(res.id)! + 1} 条
